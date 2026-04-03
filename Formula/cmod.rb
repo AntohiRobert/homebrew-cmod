@@ -2,7 +2,7 @@ class Cmod < Formula
   desc "Simple C/C++ modular build system"
   homepage "https://github.com/AntohiRobert/cmod"
   url "https://github.com/AntohiRobert/cmod/archive/refs/heads/main.tar.gz"
-  version "0.1.1"
+  version "0.1.2"
   sha256 "440a1f2817a44218d907a0780bfce500dfee138b46fcaf4dc6fba7e5e59ede0d"
 
   depends_on "python@3.12"
@@ -10,46 +10,45 @@ class Cmod < Formula
   depends_on "git"
 
   def install
-    # 1. Identificăm căile sigure către Python și GCC
+    # Identificăm căile corecte (Folosim GCC 12 constant)
+    gcc_formula = Formula["gcc@12"]
+    gcc_bin = gcc_formula.opt_bin
     python_bin = Formula["python@3.12"].opt_bin/"python3.12"
-    gcc_bin = Formula["gcc@11"].opt_bin
 
-    # 2. Instalăm scriptul în libexec (locație izolată)
     libexec.install "cmod.py"
 
-    # 3. Creăm wrapper-ul inteligent
     (bin/"cmod").write <<~EOS
       #!/bin/bash
       
-      # --- FIX MACOS HEADERS (stdlib.h, stdio.h, etc.) ---
+      # 1. Shadowing binari într-un folder temporar
+      SHADOW_BIN=$(mktemp -d)
+      
+      # 2. Configurare mediu pentru macOS vs Linux
       if [[ "$(uname)" == "Darwin" ]]; then
-        # Găsim calea către SDK-ul macOS actual
+        # Pe Mac, avem nevoie de SDK Path pentru headerele C (stdio.h etc.)
+        # DAR nu forțăm CPLUS_INCLUDE_PATH pentru a evita erorile de allocator
         export SDKROOT=$(xcrun --show-sdk-path 2>/dev/null)
         
-        # Forțăm GCC să caute în SDK-ul Apple
-        export CPATH="$SDKROOT/usr/include"
-        export LIBRARY_PATH="$SDKROOT/usr/lib"
-        
-        # Adăugăm flag-uri pentru C++ standard headers din SDK
-        export CPLUS_INCLUDE_PATH="$SDKROOT/usr/include/c++/v1:$CPATH"
+        # Creăm scripturi wrapper în loc de link-uri simple pentru a injecta sysroot
+        # Asta îi spune lui GCC unde sunt headerele de sistem FĂRĂ să le strice pe cele C++
+        echo -e "#!/bin/bash\\nexec #{gcc_bin}/g++-12 --sysroot=$SDKROOT \\"\\$@\\"" > "$SHADOW_BIN/g++"
+        echo -e "#!/bin/bash\\nexec #{gcc_bin}/gcc-12 --sysroot=$SDKROOT \\"\\$@\\"" > "$SHADOW_BIN/gcc"
+        chmod +x "$SHADOW_BIN/g++" "$SHADOW_BIN/gcc"
+      else
+        # Pe Linux, link-urile simple sunt suficiente
+        ln -s "#{gcc_bin}/g++-12" "$SHADOW_BIN/g++"
+        ln -s "#{gcc_bin}/gcc-12" "$SHADOW_BIN/gcc"
       fi
-
-      # --- FIX GCC MAPPING ---
-      # Creăm un folder temporar pentru a mapa 'g++' -> 'g++-11'
-      # Astfel cmod.py va găsi GCC 11 chiar dacă caută doar 'g++'
-      SHADOW_BIN=$(mktemp -d)
-      ln -s "#{gcc_bin}/g++-12" "$SHADOW_BIN/g++"
-      ln -s "#{gcc_bin}/gcc-12" "$SHADOW_BIN/gcc"
       
+      # 3. Exportăm variabilele necesare pentru cmod.py
+      export CMOD_CXX="$SHADOW_BIN/g++"
+      export CMOD_CC="$SHADOW_BIN/gcc"
       export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
-      export CMOD_CXX="#{gcc_bin}/g++-12"
-      export CMOD_CC="#{gcc_bin}/gcc-12"
 
-      # --- EXECUȚIE ---
-      # Folosim binarul de python specificat pentru a evita "command not found"
+      # 4. Execuție script Python
       "#{python_bin}" "#{libexec}/cmod.py" "$@"
       
-      # Cleanup la ieșire
+      # 5. Cleanup
       EXIT_CODE=$?
       rm -rf "$SHADOW_BIN"
       exit $EXIT_CODE
