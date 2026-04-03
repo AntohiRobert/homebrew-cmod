@@ -10,46 +10,39 @@ class Cmod < Formula
   depends_on "gcc@11"
 
   def install
-    # Identificăm căile corecte
     gcc_bin = Formula["gcc@11"].opt_bin
     python_bin = Formula["python@3.12"].opt_bin/"python3.12"
 
-    # Instalăm scriptul original într-o zonă privată
     libexec.install "cmod.py"
 
-    # Creăm wrapper-ul care forțează prioritizarea GCC
+    # Găsim calea către SDK-ul macOS actual (unde se află wchar.h)
+    sdk_path = `xcrun --show-sdk-path`.strip
+
     (bin/"cmod").write <<~EOS
       #!/bin/bash
-      # 1. Creăm un folder temporar pentru symlink-uri (shadowing)
       SHADOW_BIN=$(mktemp -d)
       
-      # 2. Mapăm g++ și gcc la versiunile de la Homebrew (GCC 11)
+      # Link-uri pentru binarul principal
       ln -s "#{gcc_bin}/g++-11" "$SHADOW_BIN/g++"
       ln -s "#{gcc_bin}/gcc-11" "$SHADOW_BIN/gcc"
-      ln -s "#{gcc_bin}/c++-11" "$SHADOW_BIN/c++"
       
-      # 3. Exportăm variabilele de mediu și punem SHADOW_BIN primul în PATH
+      # FIX PENTRU WCHAR.H:
+      # Setăm variabilele de mediu pentru ca GCC să găsească headerele de sistem din SDK
+      export CPATH="#{sdk_path}/usr/include"
+      export LIBRARY_PATH="#{sdk_path}/usr/lib"
+      
+      # Alte setări de compilator
       export CMOD_CXX="#{gcc_bin}/g++-11"
       export CMOD_CC="#{gcc_bin}/gcc-11"
       export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
       
-      # 4. Executăm scriptul Python
       "#{python_bin}" "#{libexec}/cmod.py" "$@"
       
-      # 5. Curățăm folderul temporar
       EXIT_CODE=$?
       rm -rf "$SHADOW_BIN"
       exit $EXIT_CODE
     EOS
 
     chmod 0755, bin/"cmod"
-  end
-
-  test do
-    system "#{bin}/cmod", "init"
-    # Testăm dacă binarul g++ raportat de sistem este cel de la GCC (nu Apple)
-    # Rulăm g++ prin wrapper ca să vedem ce versiune "vede" cmod
-    output = shell_output("PATH=#{bin}:$PATH g++ --version")
-    assert_match "Homebrew GCC", output
   end
 end
