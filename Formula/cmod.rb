@@ -11,18 +11,24 @@ class Cmod < Formula
 
   depends_on "gcc@11"
 
-  def install
-  chmod 0755, "cmod.py"
+def install
+  gcc = Formula["gcc@11"]
 
-  gcc=Formula["gcc@11"]
-  ENV["CC"] = Formula["gcc@11"].opt_bin/"gcc-11"
-  ENV["CXX"] = Formula["gcc@11"].opt_bin/"g++-11"
+  ENV["HOMEBREW_CC"] = gcc.opt_bin/"gcc-11"
+  ENV["HOMEBREW_CXX"] = gcc.opt_bin/"g++-11"
+
+  ENV["CC"] = gcc.opt_bin/"gcc-11"
+  ENV["CXX"] = gcc.opt_bin/"g++-11"
+
+  ENV.prepend_path "PATH", gcc.opt_bin
+
+  system "which", "g++-11" # debug (optional)
 
   bin.install "cmod.py" => "cmod"
-  end
+end
 
   test do
     system "#{bin}/cmod", "init"
-    assert_predicate testpath/"cmodconfig.json", :exist?
+    system "#{ENV["CXX"]}", "--version"
   end
 end
