@@ -11,31 +11,26 @@ class Cmod < Formula
   def install
     gcc = Formula["gcc"]
     gcc_bin = gcc.opt_bin
+    python = Formula["python@3.12"].opt_bin/"python3"
 
-    # Install python script into libexec (not directly exposed)
-    libexec.install "cmod.py"
+    # IMPORTANT: correct source path
+    libexec.install buildpath/"cmod.py"
 
-    # Create wrapper script that enforces GCC usage
     (bin/"cmod").write <<~EOS
       #!/bin/bash
       export CMOD_CXX=#{gcc_bin}/g++-11
       export CMOD_CC=#{gcc_bin}/gcc-11
 
-      exec #{Formula["python@3.12"].opt_bin}/python3 #{libexec}/cmod.py "$@"
+      exec #{python} #{libexec}/cmod.py "$@"
     EOS
 
     chmod 0755, bin/"cmod"
   end
 
   test do
-    # Ensure tool runs
     system "#{bin}/cmod", "init"
 
-    # Verify GCC exists (real check, not clang fallback)
     gcc = Formula["gcc"]
     system gcc.opt_bin/"g++-11", "--version"
-
-    # Ensure environment is correct
-    system "bash", "-c", "#{bin}/cmod build || true"
   end
 end
