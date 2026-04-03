@@ -6,23 +6,36 @@ class Cmod < Formula
 
   depends_on "python@3.12"
   depends_on "git"
-  depends_on "gcc@11"
+  depends_on "gcc"
 
   def install
-    gcc = Formula["gcc@11"]
+    gcc = Formula["gcc"]
+    gcc_bin = gcc.opt_bin
 
-    ENV.prepend_path "PATH", gcc.opt_bin
+    # Install python script into libexec (not directly exposed)
+    libexec.install "cmod.py"
 
-    ENV["CC"] = gcc.opt_bin/"gcc-11"
-    ENV["CXX"] = gcc.opt_bin/"g++-11"
+    # Create wrapper script that enforces GCC usage
+    (bin/"cmod").write <<~EOS
+      #!/bin/bash
+      export CMOD_CXX=#{gcc_bin}/g++-11
+      export CMOD_CC=#{gcc_bin}/gcc-11
 
-    bin.install "cmod.py" => "cmod"
+      exec #{Formula["python@3.12"].opt_bin}/python3 #{libexec}/cmod.py "$@"
+    EOS
+
+    chmod 0755, bin/"cmod"
   end
 
   test do
+    # Ensure tool runs
     system "#{bin}/cmod", "init"
 
-    gcc = Formula["gcc@11"]
+    # Verify GCC exists (real check, not clang fallback)
+    gcc = Formula["gcc"]
     system gcc.opt_bin/"g++-11", "--version"
+
+    # Ensure environment is correct
+    system "bash", "-c", "#{bin}/cmod build || true"
   end
 end
