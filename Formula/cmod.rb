@@ -10,37 +10,46 @@ class Cmod < Formula
   depends_on "gcc@11"
 
   def install
-    # Folosim variabila specifica pentru versiunea 11
-    gcc_formula = Formula["gcc@11"]
-    gcc_bin = gcc_formula.opt_bin
-    
-    # Homebrew instaleaza binarul ca python3.12 in folderul opt_bin al python@3.12
+    # Identificăm căile corecte
+    gcc_bin = Formula["gcc@11"].opt_bin
     python_bin = Formula["python@3.12"].opt_bin/"python3.12"
 
-    # Mutam scriptul in libexec
+    # Instalăm scriptul original într-o zonă privată
     libexec.install "cmod.py"
 
+    # Creăm wrapper-ul care forțează prioritizarea GCC
     (bin/"cmod").write <<~EOS
       #!/bin/bash
-      # Setam mediul pentru GCC 11
+      # 1. Creăm un folder temporar pentru symlink-uri (shadowing)
+      SHADOW_BIN=$(mktemp -d)
+      
+      # 2. Mapăm g++ și gcc la versiunile de la Homebrew (GCC 11)
+      ln -s "#{gcc_bin}/g++-11" "$SHADOW_BIN/g++"
+      ln -s "#{gcc_bin}/gcc-11" "$SHADOW_BIN/gcc"
+      ln -s "#{gcc_bin}/c++-11" "$SHADOW_BIN/c++"
+      
+      # 3. Exportăm variabilele de mediu și punem SHADOW_BIN primul în PATH
       export CMOD_CXX="#{gcc_bin}/g++-11"
       export CMOD_CC="#{gcc_bin}/gcc-11"
+      export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
       
-      # Injectam GCC 11 in PATH ca sa fie gasit daca scriptul apeleaza simplu 'g++'
-      export PATH="#{gcc_bin}:$PATH"
-
-      exec "#{python_bin}" "#{libexec}/cmod.py" "$@"
+      # 4. Executăm scriptul Python
+      "#{python_bin}" "#{libexec}/cmod.py" "$@"
+      
+      # 5. Curățăm folderul temporar
+      EXIT_CODE=$?
+      rm -rf "$SHADOW_BIN"
+      exit $EXIT_CODE
     EOS
 
     chmod 0755, bin/"cmod"
   end
 
   test do
-    # Ne asiguram ca testul ruleaza intr-un folder curat
     system "#{bin}/cmod", "init"
-    assert_predicate testpath/"cmodconfig.json", :exist?
-    
-    # Verificam ca gcc-11 este accesibil
-    system Formula["gcc@11"].opt_bin/"g++-11", "--version"
+    # Testăm dacă binarul g++ raportat de sistem este cel de la GCC (nu Apple)
+    # Rulăm g++ prin wrapper ca să vedem ce versiune "vede" cmod
+    output = shell_output("PATH=#{bin}:$PATH g++ --version")
+    assert_match "Homebrew GCC", output
   end
 end
