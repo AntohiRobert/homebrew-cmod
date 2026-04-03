@@ -6,7 +6,7 @@ class Cmod < Formula
   sha256 "440a1f2817a44218d907a0780bfce500dfee138b46fcaf4dc6fba7e5e59ede0d"
 
   depends_on "python@3.12"
-  depends_on "gcc@11"
+  depends_on "gcc@12"
   depends_on "git"
 
   def install
@@ -38,12 +38,12 @@ class Cmod < Formula
       # Creăm un folder temporar pentru a mapa 'g++' -> 'g++-11'
       # Astfel cmod.py va găsi GCC 11 chiar dacă caută doar 'g++'
       SHADOW_BIN=$(mktemp -d)
-      ln -s "#{gcc_bin}/g++-11" "$SHADOW_BIN/g++"
-      ln -s "#{gcc_bin}/gcc-11" "$SHADOW_BIN/gcc"
+      ln -s "#{gcc_bin}/g++-12" "$SHADOW_BIN/g++"
+      ln -s "#{gcc_bin}/gcc-12" "$SHADOW_BIN/gcc"
       
       export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
-      export CMOD_CXX="#{gcc_bin}/g++-11"
-      export CMOD_CC="#{gcc_bin}/gcc-11"
+      export CMOD_CXX="#{gcc_bin}/g++-12"
+      export CMOD_CC="#{gcc_bin}/gcc-12"
 
       # --- EXECUȚIE ---
       # Folosim binarul de python specificat pentru a evita "command not found"
