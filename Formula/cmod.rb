@@ -4,7 +4,6 @@ class Cmod < Formula
   url "https://github.com/AntohiRobert/cmod/archive/refs/heads/main.tar.gz"
   version "0.1.0"
 
-  sha256 "440a1f2817a44218d907a0780bfce500dfee138b46fcaf4dc6fba7e5e59ede0d"
 
   depends_on "python@3.12"
 
@@ -13,6 +12,7 @@ class Cmod < Formula
   depends_on "gcc@11"
 
   def install
+  chmod 0755, "cmod.py"
   ENV["CC"] = Formula["gcc@11"].opt_bin/"gcc-11"
   ENV["CXX"] = Formula["gcc@11"].opt_bin/"g++-11"
 
@@ -21,5 +21,6 @@ class Cmod < Formula
 
   test do
     system "#{bin}/cmod", "init"
+    assert_predicate testpath/"cmodconfig.json", :exist?
   end
 end
