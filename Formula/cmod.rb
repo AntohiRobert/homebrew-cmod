@@ -17,10 +17,6 @@ def install
   # 1. Put GCC first in PATH (VERY important)
   ENV.prepend_path "PATH", gcc.opt_bin
 
-  # 2. Force compiler selection (Homebrew-supported way)
-  ENV.cc = gcc.opt_bin/"gcc-11"
-  ENV.cxx = gcc.opt_bin/"g++-11"
-
   # 3. Extra safety: explicit env vars for build systems
   ENV["CC"] = gcc.opt_bin/"gcc-11"
   ENV["CXX"] = gcc.opt_bin/"g++-11"
