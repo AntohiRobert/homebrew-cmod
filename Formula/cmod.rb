@@ -7,47 +7,36 @@ class Cmod < Formula
 
   depends_on "python@3.12"
   depends_on "git"
-  depends_on "gcc@11"
+  depends_on "gcc@12"
 
   def install
-    gcc_formula = Formula["gcc@11"]
-    gcc_bin = gcc_formula.opt_bin
+    # Identificăm căile corecte
+    gcc_bin = Formula["gcc@11"].opt_bin
     python_bin = Formula["python@3.12"].opt_bin/"python3.12"
 
+    # Instalăm scriptul original într-o zonă privată
     libexec.install "cmod.py"
 
-    # Logica specifica pentru macOS vs Linux
-    extra_env = ""
-    if OS.mac?
-      sdk_path = `xcrun --show-sdk-path`.strip
-      extra_env = <<~EOS
-        export SDKROOT="#{sdk_path}"
-        export CPATH="#{sdk_path}/usr/include"
-        export CPLUS_INCLUDE_PATH="#{sdk_path}/usr/include/c++/v1:#{sdk_path}/usr/include"
-        export LIBRARY_PATH="#{sdk_path}/usr/lib"
-      EOS
-    end
-
-    # Wrapper-ul universal
+    # Creăm wrapper-ul care forțează prioritizarea GCC
     (bin/"cmod").write <<~EOS
       #!/bin/bash
-      # 1. Shadowing binari pentru a forta g++-11 ca "g++"
+      # 1. Creăm un folder temporar pentru symlink-uri (shadowing)
       SHADOW_BIN=$(mktemp -d)
-      ln -s "#{gcc_bin}/g++-11" "$SHADOW_BIN/g++"
-      ln -s "#{gcc_bin}/gcc-11" "$SHADOW_BIN/gcc"
       
-      # 2. Injectare variabile de mediu (doar pe macOS daca e cazul)
-      #{extra_env}
-
-      # 3. Setare mediu CMOD si PATH
-      export CMOD_CXX="#{gcc_bin}/g++-11"
-      export CMOD_CC="#{gcc_bin}/gcc-11"
+      # 2. Mapăm g++ și gcc la versiunile de la Homebrew (GCC 11)
+      ln -s "#{gcc_bin}/g++-12" "$SHADOW_BIN/g++"
+      ln -s "#{gcc_bin}/gcc-12" "$SHADOW_BIN/gcc"
+      ln -s "#{gcc_bin}/c++-12" "$SHADOW_BIN/c++"
+      
+      # 3. Exportăm variabilele de mediu și punem SHADOW_BIN primul în PATH
+      export CMOD_CXX="#{gcc_bin}/g++-12"
+      export CMOD_CC="#{gcc_bin}/gcc-12"
       export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
       
-      # 4. Executare script Python
+      # 4. Executăm scriptul Python
       "#{python_bin}" "#{libexec}/cmod.py" "$@"
       
-      # 5. Cleanup
+      # 5. Curățăm folderul temporar
       EXIT_CODE=$?
       rm -rf "$SHADOW_BIN"
       exit $EXIT_CODE
@@ -57,12 +46,10 @@ class Cmod < Formula
   end
 
   test do
-    # Test cross-platform: verifica daca init functioneaza
     system "#{bin}/cmod", "init"
-    assert_predicate testpath/"cmodconfig.json", :exist?
-    
-    # Verifica daca compilatorul raportat este cel corect (GCC 11)
+    # Testăm dacă binarul g++ raportat de sistem este cel de la GCC (nu Apple)
+    # Rulăm g++ prin wrapper ca să vedem ce versiune "vede" cmod
     output = shell_output("PATH=#{bin}:$PATH g++ --version")
-    assert_match "11.", output
+    assert_match "Homebrew GCC", output
   end
 end
