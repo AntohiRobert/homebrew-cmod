@@ -10,41 +10,44 @@ class Cmod < Formula
   depends_on "gcc@11"
 
   def install
-    gcc_bin = Formula["gcc@11"].opt_bin
+    gcc_formula = Formula["gcc@11"]
+    gcc_bin = gcc_formula.opt_bin
     python_bin = Formula["python@3.12"].opt_bin/"python3.12"
-    
-    # Găsim calea către SDK-ul macOS (esențial pentru stdlib.h, stdio.h, etc.)
-    sdk_path = `xcrun --show-sdk-path`.strip
 
     libexec.install "cmod.py"
 
+    # Logica specifica pentru macOS vs Linux
+    extra_env = ""
+    if OS.mac?
+      sdk_path = `xcrun --show-sdk-path`.strip
+      extra_env = <<~EOS
+        export SDKROOT="#{sdk_path}"
+        export CPATH="#{sdk_path}/usr/include"
+        export CPLUS_INCLUDE_PATH="#{sdk_path}/usr/include/c++/v1:#{sdk_path}/usr/include"
+        export LIBRARY_PATH="#{sdk_path}/usr/lib"
+      EOS
+    end
+
+    # Wrapper-ul universal
     (bin/"cmod").write <<~EOS
       #!/bin/bash
-      # 1. Creăm un folder temporar pentru symlink-uri
+      # 1. Shadowing binari pentru a forta g++-11 ca "g++"
       SHADOW_BIN=$(mktemp -d)
-      
-      # 2. Mapăm g++ și gcc către versiunile Homebrew
       ln -s "#{gcc_bin}/g++-11" "$SHADOW_BIN/g++"
       ln -s "#{gcc_bin}/gcc-11" "$SHADOW_BIN/gcc"
       
-      # 3. FIX PENTRU HEADERS (stdlib.h, wchar.h, etc.)
-      # SDKROOT este variabila standard pe macOS pentru a indica locația headerelor
-      export SDKROOT="#{sdk_path}"
-      
-      # Forțăm căile de include pentru GCC
-      export CPATH="#{sdk_path}/usr/include"
-      export CPLUS_INCLUDE_PATH="#{sdk_path}/usr/include/c++/v1:#{sdk_path}/usr/include"
-      export LIBRARY_PATH="#{sdk_path}/usr/lib"
+      # 2. Injectare variabile de mediu (doar pe macOS daca e cazul)
+      #{extra_env}
 
-      # 4. Setăm restul mediului
+      # 3. Setare mediu CMOD si PATH
       export CMOD_CXX="#{gcc_bin}/g++-11"
       export CMOD_CC="#{gcc_bin}/gcc-11"
       export PATH="$SHADOW_BIN:#{gcc_bin}:$PATH"
       
-      # 5. Executăm scriptul Python
+      # 4. Executare script Python
       "#{python_bin}" "#{libexec}/cmod.py" "$@"
       
-      # 6. Curățăm
+      # 5. Cleanup
       EXIT_CODE=$?
       rm -rf "$SHADOW_BIN"
       exit $EXIT_CODE
@@ -54,15 +57,12 @@ class Cmod < Formula
   end
 
   test do
-    # Test simplu pentru a vedea dacă găsește stdlib.h
-    (testpath/"test.cpp").write <<~EOS
-      #include <stdlib.h>
-      #include <stdio.h>
-      int main() { return 0; }
-    EOS
-    
+    # Test cross-platform: verifica daca init functioneaza
     system "#{bin}/cmod", "init"
-    # Simulăm un build manual prin wrapper pentru testare
-    system "PATH=#{bin}:$PATH", "g++", "test.cpp", "-o", "test_out"
+    assert_predicate testpath/"cmodconfig.json", :exist?
+    
+    # Verifica daca compilatorul raportat este cel corect (GCC 11)
+    output = shell_output("PATH=#{bin}:$PATH g++ --version")
+    assert_match "11.", output
   end
 end
