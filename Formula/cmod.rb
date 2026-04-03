@@ -14,15 +14,20 @@ class Cmod < Formula
 def install
   gcc = Formula["gcc@11"]
 
-  ENV["HOMEBREW_CC"] = gcc.opt_bin/"gcc-11"
-  ENV["HOMEBREW_CXX"] = gcc.opt_bin/"g++-11"
+  # 1. Put GCC first in PATH (VERY important)
+  ENV.prepend_path "PATH", gcc.opt_bin
 
+  # 2. Force compiler selection (Homebrew-supported way)
+  ENV.cc = gcc.opt_bin/"gcc-11"
+  ENV.cxx = gcc.opt_bin/"g++-11"
+
+  # 3. Extra safety: explicit env vars for build systems
   ENV["CC"] = gcc.opt_bin/"gcc-11"
   ENV["CXX"] = gcc.opt_bin/"g++-11"
 
-  ENV.prepend_path "PATH", gcc.opt_bin
-
-  system "which", "g++-11" # debug (optional)
+  # 4. Prevent accidental clang fallback in some build systems
+  ENV["HOMEBREW_CC"] = gcc.opt_bin/"gcc-11"
+  ENV["HOMEBREW_CXX"] = gcc.opt_bin/"g++-11"
 
   bin.install "cmod.py" => "cmod"
 end
