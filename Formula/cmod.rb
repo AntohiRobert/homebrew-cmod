@@ -3,7 +3,7 @@ class Cmod < Formula
   homepage "https://github.com/AntohiRobert/cmod"
   url "https://github.com/AntohiRobert/cmod/archive/refs/heads/main.tar.gz"
   version "0.1.2"
-  sha256 "440a1f2817a44218d907a0780bfce500dfee138b46fcaf4dc6fba7e5e59ede0d"
+  #sha256 "440a1f2817a44218d907a0780bfce500dfee138b46fcaf4dc6fba7e5e59ede0d"
 
   depends_on "python@3.12"
   depends_on "gcc@12"
