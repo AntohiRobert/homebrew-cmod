@@ -4,7 +4,8 @@ class Cmod < Formula
 
   head do
     url "https://github.com/AntohiRobert/cmod.git"
-    branch:"main"
+    :using => Git
+    :branch => "main"
   end
 
   depends_on "python@3.12"
