@@ -2,7 +2,10 @@ class Cmod < Formula
   desc "Simple C/C++ modular build system (GCC 12 enforced)"
   homepage "https://github.com/AntohiRobert/cmod"
 
-  head "https://github.com/AntohiRobert/cmod.git"
+  head do
+    url "https://github.com/AntohiRobert/cmod.git"
+    branch "main"
+  end
 
   depends_on "python@3.12"
   depends_on "gcc@12"
